@@ -1,7 +1,7 @@
 {
   "name": "GTI Control Add-ons",
   "url": "https://github.com/kuanhmn/gticontrol",
-  "maintainer": "Kuanhmn <youremail@domain.com>",
+  "maintainer": "Kuanhmn thanhbinhpt95@gmail.com",
   "addons": {
     "gti-control": {
       "name": "GTI Control (Ingress UI)",
