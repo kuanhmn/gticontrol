@@ -1,12 +1,5 @@
 {
   "name": "GTI Control Add-ons",
   "url": "https://github.com/kuanhmn/gticontrol",
-  "maintainer": "Kuanhmn thanhbinhpt95@gmail.com",
-  "addons": {
-    "gti-control": {
-      "name": "GTI Control (Ingress UI)",
-      "slug": "gti_control",
-      "description": "Quản lý biến tần GTI: xem thông số, cài đặt, lập lịch. Có UI Ingress và xuất entity qua MQTT Discovery."
-    }
-  }
+  "maintainer": "Kuanhmn thanhbinhpt95@gmail.com"
 }
