@@ -1,0 +1,8 @@
+{
+  "name": "GTI Control (Ingress UI)",
+  "version": "0.2.0",
+  "slug": "gti_control",
+  "description": "UI 3 tab cho GTI",
+  "startup": "services",
+  "ingress": true
+}
