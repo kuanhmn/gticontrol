@@ -82,5 +82,4 @@
   "environment": {
     "PYTHONUNBUFFERED": "1"
   },
-  "image": "local/gti-control-{arch}"
 }
