@@ -1,7 +1,8 @@
-ARG BUILD_FROM=ghcr.io/hassio-addons/base-python:14.2.2
+ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
 RUN apk add --no-cache tini
+
 COPY requirements.txt /tmp/requirements.txt
 RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
 
