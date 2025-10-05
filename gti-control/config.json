@@ -1,12 +1,13 @@
 {
   "name": "GTI Control (Ingress UI)",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "slug": "gti_control",
   "description": "UI 3 tab + MQTT Discovery cho biến tần GTI. Hỗ trợ bật/tắt nguồn server cho daily/monthly.",
   "startup": "services",
   "boot": "auto",
+
   "ingress": true,
-  "ingress_entry": "app",
+  "ingress_port": 8099,           // <— BẮT BUỘC: cổng uvicorn đang listen
   "panel_icon": "mdi:solar-power",
   "arch": ["aarch64", "armv7", "amd64", "i386"],
   "init": false,
