@@ -7,7 +7,7 @@
   "boot": "auto",
 
   "ingress": true,
-  "ingress_port": 8099,           // <— BẮT BUỘC: cổng uvicorn đang listen
+  "ingress_port": 8099,
   "panel_icon": "mdi:solar-power",
   "arch": ["aarch64", "armv7", "amd64", "i386"],
   "init": false,
