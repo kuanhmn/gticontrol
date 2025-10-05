@@ -1,11 +1,13 @@
-ARG BUILD_FROM
-FROM ${BUILD_FROM}
+FROM ghcr.io/home-assistant/{arch}-base:latest
 
-RUN apk add --no-cache tini
+# Cài python3 + pip + tini
+RUN apk add --no-cache python3 py3-pip tini
 
+# Cài deps Python
 COPY requirements.txt /tmp/requirements.txt
-RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
+RUN python3 -m pip install --no-cache-dir -r /tmp/requirements.txt
 
+# App
 COPY app /app
 COPY run.sh /run.sh
 RUN chmod a+x /run.sh
