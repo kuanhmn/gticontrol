@@ -1,6 +1,6 @@
 {
   "name": "GTI Control (Ingress UI)",
-  "version": "0.1.1",
+  "version": "0.3.2",
   "slug": "gti_control",
   "description": "UI 3 tab + MQTT Discovery cho biến tần GTI.",
   "startup": "services",
@@ -9,87 +9,4 @@
   "ingress_entry": "app",
   "panel_icon": "mdi:solar-power",
   "arch": ["aarch64", "armv7", "amd64", "i386"]
-}    "mqtt_port": 1883,
-    "mqtt_username": "",
-    "mqtt_password": "",
-    "mqtt_prefix": "homeassistant",
-    "log_level": "INFO"
-  },
-  "schema": {
-    "auth_method": "list(email_password|google)",
-    "email": "str?",
-    "password": "str?",
-    "google_oauth": "bool",
-    "server_enabled": "bool",
-    "use_server_daily_monthly": "bool",
-    "expose_totals_only": "bool",
-    "server_base_url": "str",
-    "firebase_api_key": "str?",
-    "firebase_project_id": "str?",
-    "mqtt_device_source": "list(mqtt|rest)",
-    "device_mqtt_host": "str?",
-    "device_mqtt_port": "int?",
-    "device_mqtt_username": "str?",
-    "device_mqtt_password": "str?",
-    "scan_interval": "int(5,3600)",
-    "include_devices": ["str"],
-    "publish_mqtt": "bool",
-    "mqtt_host": "str?",
-    "mqtt_port": "int?",
-    "mqtt_username": "str?",
-    "mqtt_password": "str?",
-    "mqtt_prefix": "str",
-    "log_level": "list(DEBUG|INFO|WARNING|ERROR)"
-  },
-  "environment": {
-    "PYTHONUNBUFFERED": "1"
-  }
-}    "mqtt_device_source": "mqtt",
-    "device_mqtt_host": "giabao-inverter.com",
-    "device_mqtt_port": 1883,
-    "device_mqtt_username": "",
-    "device_mqtt_password": "",
-    "scan_interval": 30,
-    "include_devices": [
-      "all"
-    ],
-    "publish_mqtt": true,
-    "mqtt_host": "",
-    "mqtt_port": 1883,
-    "mqtt_username": "",
-    "mqtt_password": "",
-    "mqtt_prefix": "homeassistant",
-    "log_level": "INFO"
-  },
-  "schema": {
-    "auth_method": "list(email_password|google)",
-    "email": "str?",
-    "password": "str?",
-    "google_oauth": "bool",
-    "server_enabled": "bool",
-    "use_server_daily_monthly": "bool",
-    "expose_totals_only": "bool",
-    "server_base_url": "str",
-    "firebase_api_key": "str?",
-    "firebase_project_id": "str?",
-    "mqtt_device_source": "list(mqtt|rest)",
-    "device_mqtt_host": "str?",
-    "device_mqtt_port": "int?",
-    "device_mqtt_username": "str?",
-    "device_mqtt_password": "str?",
-    "scan_interval": "int(5,3600)",
-    "include_devices": [
-      "str"
-    ],
-    "publish_mqtt": "bool",
-    "mqtt_host": "str?",
-    "mqtt_port": "int?",
-    "mqtt_username": "str?",
-    "mqtt_password": "str?",
-    "mqtt_prefix": "str",
-    "log_level": "list(DEBUG|INFO|WARNING|ERROR)"
-  },
-  "environment": {
-    "PYTHONUNBUFFERED": "1"
-  },
 }
