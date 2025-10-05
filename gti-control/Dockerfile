@@ -1,15 +1,14 @@
-
 ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
-# Cài python + pip + tini (base của HA không có sẵn Python)
-RUN apk add --no-cache python3 py3-pip tini
+RUN apk add --no-cache python3 py3-pip py3-virtualenv tini
 
-# Cài Python deps
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
 COPY requirements.txt /tmp/requirements.txt
-RUN python3 -m pip install --no-cache-dir -r /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
-# App
 COPY app /app
 COPY run.sh /run.sh
 RUN chmod a+x /run.sh
