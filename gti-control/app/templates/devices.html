@@ -1,1 +1,14 @@
-{% extends 'base.html' %}{% block body %}<p>Devices</p>{% endblock %}
+{% extends "base.html" %}
+{% block body %}
+<p class="title">Thiết bị</p>
+<div class="row">
+  {% for d in devices %}
+  <div class="col card">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div><strong>{{ d }}</strong></div>
+      <a class="btn" href="/app/device/{{ d }}?tab=stats">Xem</a>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
