@@ -1,9 +1,11 @@
-FROM ghcr.io/home-assistant/{arch}-base:latest
 
-# Cài python3 + pip + tini
+ARG BUILD_FROM
+FROM ${BUILD_FROM}
+
+# Cài python + pip + tini (base của HA không có sẵn Python)
 RUN apk add --no-cache python3 py3-pip tini
 
-# Cài deps Python
+# Cài Python deps
 COPY requirements.txt /tmp/requirements.txt
 RUN python3 -m pip install --no-cache-dir -r /tmp/requirements.txt
 
