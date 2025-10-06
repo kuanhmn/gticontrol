@@ -81,24 +81,35 @@ def home():
 def app_root():
     return RedirectResponse(url="/app/login")
 
+from starlette.responses import HTMLResponse, RedirectResponse
+
 @app.get("/app/login", response_class=HTMLResponse)
 def login_page():
     opt = load_options()
-    # Nếu đã cấu hình sẵn (hoặc dùng Google OAuth), bỏ qua form và vào thẳng
-    if (opt.get("email") and opt.get("password")) or opt.get("google_oauth"):
+    has_creds = bool(
+        (opt.get("email") and opt.get("password")) or opt.get("google_oauth")
+    )
+    if has_creds:
         return RedirectResponse(url="/app/devices", status_code=302)
     return render("login.html")
 
 @app.post("/app/login", response_class=HTMLResponse)
 async def do_login(req: Request):
+    """
+    Đăng nhập qua form: lưu thẳng vào options của add-on rồi chuyển trang.
+    (Yêu cầu đã cài `python-multipart` trong requirements.txt)
+    """
     form = await req.form()
     email = (form.get("email") or "").strip()
     password = (form.get("password") or "").strip()
+
     opt = load_options()
     opt["email"] = email
     opt["password"] = password
+
     with open(ADDON_OPTIONS_PATH, "w", encoding="utf-8") as f:
         json.dump(opt, f, ensure_ascii=False, indent=2)
+
     start_system()
     return RedirectResponse(url="/app/devices", status_code=302)
 
