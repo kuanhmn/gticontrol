@@ -104,3 +104,22 @@ def device_detail(device_id: str, tab: str = "stats"):
                   state=st, schedules=schedules,
                   use_server_daily_monthly=coordinator.use_server_daily_monthly,
                   server_enabled=coordinator.server_enabled)
+from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
+
+try:
+    app  # nếu đã khai báo ở trên thì giữ
+except NameError:
+    app = FastAPI()
+
+@app.get("/health")
+def health():
+    return {"ok": True}
+
+@app.get("/")
+def root():
+    return {"status": "GTI Control running", "path": "/"}
+
+@app.get("/app")
+def go_app():
+    return RedirectResponse("/")
