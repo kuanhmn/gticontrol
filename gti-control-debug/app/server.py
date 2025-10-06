@@ -83,8 +83,15 @@ def app_root():
 
 from starlette.responses import HTMLResponse, RedirectResponse
 
+from starlette.responses import HTMLResponse, RedirectResponse
+
 @app.get("/app/login", response_class=HTMLResponse)
 def login_page():
+    """
+    Nếu đã có sẵn email/password trong Add-on Options
+    hoặc đang bật google_oauth thì bỏ qua form và vào thẳng
+    trang thiết bị.
+    """
     opt = load_options()
     has_creds = bool(
         (opt.get("email") and opt.get("password")) or opt.get("google_oauth")
@@ -92,6 +99,7 @@ def login_page():
     if has_creds:
         return RedirectResponse(url="/app/devices", status_code=302)
     return render("login.html")
+
 
 @app.post("/app/login", response_class=HTMLResponse)
 async def do_login(req: Request):
