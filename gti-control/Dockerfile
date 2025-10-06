@@ -11,9 +11,9 @@ COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 COPY app /app
-COPY run.sh /run.sh
-RUN chmod a+x /run.sh
 
 EXPOSE 8099
 ENTRYPOINT ["/sbin/tini","-g","--"]
 CMD [ "/run.sh" ]
+COPY run.sh /run.sh
+RUN sed -i 's/\r$//' /run.sh && chmod a+x /run.sh
