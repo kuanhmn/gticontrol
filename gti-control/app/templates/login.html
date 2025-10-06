@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block body %}
+<div style="max-width:420px;margin:0 auto;">
+  <p class="title">Đăng nhập</p>
+  <form method="post" action="/app/login">
+    <div style="display:grid; gap:10px;">
+      <input class="input" name="email" type="email" placeholder="Email">
+      <input class="input" name="password" type="password" placeholder="Mật khẩu">
+    </div>
+    <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
+      <button class="btn" type="submit">Đăng nhập</button>
+    </div>
+  </form>
+  <p class="muted" style="margin-top:10px;">* Nếu đã cấu hình ở Add-on Options thì có thể bỏ qua bước này.</p>
+</div>
+{% endblock %}

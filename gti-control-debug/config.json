@@ -1,0 +1,88 @@
+{
+  "name": "GTI Control (Debug / Port 8099)",
+  "version": "0.1.0",
+  "slug": "gti_control_debug",
+  "description": "Bản debug mở cổng 8099 để kiểm tra lỗi 502. V0.1.0",
+  "startup": "services",
+  "boot": "auto",
+  "panel_icon": "mdi:solar-power",
+  "arch": [
+    "aarch64",
+    "armv7",
+    "amd64",
+    "i386"
+  ],
+  "init": false,
+  "hassio_role": "default",
+  "homeassistant_api": false,
+  "auth_api": false,
+  "map": [
+    "share:rw",
+    "config:rw",
+    "ssl:ro"
+  ],
+  "options": {
+    "auth_method": "email_password",
+    "email": "",
+    "password": "",
+    "google_oauth": false,
+    "server_enabled": true,
+    "use_server_daily_monthly": true,
+    "expose_totals_only": false,
+    "server_base_url": "https://giabao-inverter.com",
+    "firebase_api_key": "",
+    "firebase_project_id": "",
+    "mqtt_device_source": "mqtt",
+    "device_mqtt_host": "giabao-inverter.com",
+    "device_mqtt_port": 1883,
+    "device_mqtt_username": "",
+    "device_mqtt_password": "",
+    "scan_interval": 30,
+    "include_devices": [
+      "all"
+    ],
+    "publish_mqtt": true,
+    "mqtt_host": "",
+    "mqtt_port": 1883,
+    "mqtt_username": "",
+    "mqtt_password": "",
+    "mqtt_prefix": "homeassistant",
+    "log_level": "INFO"
+  },
+  "schema": {
+    "auth_method": "list(email_password|google)",
+    "email": "str?",
+    "password": "str?",
+    "google_oauth": "bool",
+    "server_enabled": "bool",
+    "use_server_daily_monthly": "bool",
+    "expose_totals_only": "bool",
+    "server_base_url": "str",
+    "firebase_api_key": "str?",
+    "firebase_project_id": "str?",
+    "mqtt_device_source": "list(mqtt|rest)",
+    "device_mqtt_host": "str?",
+    "device_mqtt_port": "int?",
+    "device_mqtt_username": "str?",
+    "device_mqtt_password": "str?",
+    "scan_interval": "int(5,3600)",
+    "include_devices": [
+      "str"
+    ],
+    "publish_mqtt": "bool",
+    "mqtt_host": "str?",
+    "mqtt_port": "int?",
+    "mqtt_username": "str?",
+    "mqtt_password": "str?",
+    "mqtt_prefix": "str",
+    "log_level": "list(DEBUG|INFO|WARNING|ERROR)"
+  },
+  "environment": {
+    "PYTHONUNBUFFERED": "1"
+  },
+  "ingress": false,
+  "webui": "http://[HOST]:[PORT:8099]",
+  "ports": {
+    "8099/tcp": 8099
+  }
+}
