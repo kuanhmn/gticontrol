@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 set -e
 export PYTHONPATH=/app:${PYTHONPATH}
 echo "[gti] starting GTI Control (Ingress UI)"
