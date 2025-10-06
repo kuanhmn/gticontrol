@@ -1,6 +1,6 @@
 {
   "name": "GTI Control (Ingress UI)",
-  "version": "0.3.0",
+  "version": "0.1.0",
   "slug": "gti_control",
   "description": "UI 3 tab + MQTT Discovery cho biến tần GTI. Hỗ trợ bật/tắt nguồn server cho daily/monthly.",
   "startup": "services",
