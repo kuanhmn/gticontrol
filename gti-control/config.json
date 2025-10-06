@@ -1,30 +1,36 @@
 {
   "name": "GTI Control (Ingress UI)",
-  "version": "0.1.5",
+  "version": "0.3.0",
   "slug": "gti_control",
   "description": "UI 3 tab + MQTT Discovery cho biến tần GTI. Hỗ trợ bật/tắt nguồn server cho daily/monthly.",
   "startup": "services",
   "boot": "auto",
-
   "ingress": true,
-  "ports": { "8099/tcp": 8099 }
+  "ingress_entry": "app",
   "panel_icon": "mdi:solar-power",
-  "arch": ["aarch64", "armv7", "amd64", "i386"],
+  "arch": [
+    "aarch64",
+    "armv7",
+    "amd64",
+    "i386"
+  ],
   "init": false,
   "hassio_role": "default",
   "homeassistant_api": false,
   "auth_api": false,
-  "map": ["share:rw", "config:rw", "ssl:ro"],
+  "map": [
+    "share:rw",
+    "config:rw",
+    "ssl:ro"
+  ],
   "options": {
     "auth_method": "email_password",
     "email": "",
     "password": "",
     "google_oauth": false,
-
     "server_enabled": true,
     "use_server_daily_monthly": true,
     "expose_totals_only": false,
-
     "server_base_url": "https://giabao-inverter.com",
     "firebase_api_key": "",
     "firebase_project_id": "",
@@ -33,9 +39,10 @@
     "device_mqtt_port": 1883,
     "device_mqtt_username": "",
     "device_mqtt_password": "",
-
     "scan_interval": 30,
-    "include_devices": ["all"],
+    "include_devices": [
+      "all"
+    ],
     "publish_mqtt": true,
     "mqtt_host": "",
     "mqtt_port": 1883,
@@ -49,11 +56,9 @@
     "email": "str?",
     "password": "str?",
     "google_oauth": "bool",
-
     "server_enabled": "bool",
     "use_server_daily_monthly": "bool",
     "expose_totals_only": "bool",
-
     "server_base_url": "str",
     "firebase_api_key": "str?",
     "firebase_project_id": "str?",
@@ -62,9 +67,10 @@
     "device_mqtt_port": "int?",
     "device_mqtt_username": "str?",
     "device_mqtt_password": "str?",
-
     "scan_interval": "int(5,3600)",
-    "include_devices": ["str"],
+    "include_devices": [
+      "str"
+    ],
     "publish_mqtt": "bool",
     "mqtt_host": "str?",
     "mqtt_port": "int?",
@@ -75,5 +81,6 @@
   },
   "environment": {
     "PYTHONUNBUFFERED": "1"
-  }
+  },
+  "image": "local/gti-control-{arch}"
 }
