@@ -8,6 +8,7 @@
 
   "ingress": true,
   "ingress_port": 8099,
+  "ports": { "8099/tcp": 8099 }
   "panel_icon": "mdi:solar-power",
   "arch": ["aarch64", "armv7", "amd64", "i386"],
   "init": false,
