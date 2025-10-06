@@ -83,6 +83,10 @@ def app_root():
 
 @app.get("/app/login", response_class=HTMLResponse)
 def login_page():
+    opt = load_options()
+    # Nếu đã cấu hình sẵn (hoặc dùng Google OAuth), bỏ qua form và vào thẳng
+    if (opt.get("email") and opt.get("password")) or opt.get("google_oauth"):
+        return RedirectResponse(url="/app/devices", status_code=302)
     return render("login.html")
 
 @app.post("/app/login", response_class=HTMLResponse)
