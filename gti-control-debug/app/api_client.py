@@ -69,12 +69,18 @@ from api_client import load_options
 
 opt = load_options()
 
-# nếu có device_suffixes thì map sang include_devices
+# Ưu tiên device_suffixes nếu có
 suffixes = opt.get("device_suffixes", "")
 if suffixes:
     suffix_list = [s.strip() for s in suffixes.split(",") if s.strip()]
     include_devices = [f"GTIControl{s}" for s in suffix_list]
     opt["include_devices"] = include_devices
+else:
+    # Nếu device_suffixes rỗng, dùng include_devices như config gốc
+    include_devices = opt.get("include_devices", [])
+    if not include_devices:
+        # fallback: mặc định all
+        opt["include_devices"] = ["all"]
 
     # ---------- public ----------
     def login(self, force: bool = False) -> bool:
