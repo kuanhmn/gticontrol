@@ -1,6 +1,6 @@
 {
   "name": "GTI Control (Debug / Port 8099)",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "slug": "gti_control_debug",
   "description": "Bản debug mở cổng 8099 để kiểm tra lỗi 502",
   "startup": "services",
