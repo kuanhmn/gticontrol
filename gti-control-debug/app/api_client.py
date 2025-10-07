@@ -65,6 +65,17 @@ class APIClient:
         # còn >60s coi như hợp lệ
         return bool(self.id_token) and (time.time() < (self.exp_at - 60))
 
+from api_client import load_options
+
+opt = load_options()
+
+# nếu có device_suffixes thì map sang include_devices
+suffixes = opt.get("device_suffixes", "")
+if suffixes:
+    suffix_list = [s.strip() for s in suffixes.split(",") if s.strip()]
+    include_devices = [f"GTIControl{s}" for s in suffix_list]
+    opt["include_devices"] = include_devices
+
     # ---------- public ----------
     def login(self, force: bool = False) -> bool:
         """Login Firebase. Trả True nếu OK (hoặc đã có token hợp lệ)."""
