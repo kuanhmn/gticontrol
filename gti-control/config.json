@@ -1,6 +1,6 @@
 {
   "name": "GTI Control (Ingress UI)",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "slug": "gti_control",
   "description": "Ingress UI + MQTT Discovery cho biến tần GTI. V0.1.0",
   "startup": "services",
