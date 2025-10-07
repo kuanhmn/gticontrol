@@ -15,6 +15,20 @@ USER_PATH = "/data/user_options.json"
 
 app = FastAPI(title=APP_TITLE)
 
+opt = load_options()
+
+# Ưu tiên device_suffixes nếu có
+suffixes = opt.get("device_suffixes", "")
+if suffixes:
+    suffix_list = [s.strip() for s in suffixes.split(",") if s.strip()]
+    include_devices = [f"GTIControl{s}" for s in suffix_list]
+    opt["include_devices"] = include_devices
+else:
+    # Nếu device_suffixes rỗng, dùng include_devices như config gốc
+    include_devices = opt.get("include_devices", [])
+    if not include_devices:
+        # fallback: mặc định all
+        opt["include_devices"] = ["all"]
 # ---------- Jinja templates ----------
 env = Environment(
     loader=FileSystemLoader("/app/templates"),
