@@ -1,127 +1,164 @@
+# app/api_client.py
+import os
+import json
+import time
+import threading
 import requests
-from typing import Dict, List, Optional
+from typing import Dict, Any, Optional, List
+
+OPTIONS_PATH = "/data/options.json"
+USER_PATH = "/data/user_options.json"
+
+def load_options() -> Dict[str, Any]:
+    with open(OPTIONS_PATH, "r", encoding="utf-8") as f:
+        j = json.load(f)
+    # strip khoảng trắng “vô hình”
+    for k in ("firebase_api_key", "email", "password", "server_base_url"):
+        v = j.get(k)
+        if isinstance(v, str):
+            j[k] = v.strip()
+    return j
+
 
 class APIClient:
-    def __init__(self, options: Dict):
-        self.opt = options
-        self.server_enabled: bool = bool(options.get("server_enabled", True))
-        self.server_base = (options.get("server_base_url") or "").rstrip("/")
-        self.firebase_api_key = options.get("firebase_api_key") or ""
-        self.email = options.get("email") or ""
-        self.password = options.get("password") or ""
-        self.auth_method = options.get("auth_method", "email_password")
+    """Client lo phần login + gọi REST tới server giabao-inverter."""
+
+    def __init__(self, opts: Dict[str, Any]):
+        self.base = (opts.get("server_base_url") or "").rstrip("/")
+        self.email = opts.get("email") or ""
+        self.password = opts.get("password") or ""
+        self.api_key = opts.get("firebase_api_key") or ""
+        self.server_enabled = bool(opts.get("server_enabled", True))
+        self.s = requests.Session()
+
+        self._lock = threading.Lock()
         self.id_token: Optional[str] = None
-        self.user_id: Optional[str] = None
+        self.uid: Optional[str] = None
+        self.exp_at: int = 0  # epoch seconds
 
-    def login(self) -> bool:
-        if not self.server_enabled:
-            return True
-        if self.auth_method == "email_password" and self.firebase_api_key and self.email and self.password:
+        # nạp cache nếu có
+        if os.path.exists(USER_PATH):
             try:
-                url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={self.firebase_api_key}"
-                payload = {"email": self.email, "password": self.password, "returnSecureToken": True}
-                r = requests.post(url, json=payload, timeout=15)
-                r.raise_for_status()
-                data = r.json()
-                self.id_token = data.get("idToken")
-                self.user_id  = data.get("localId")
-                return True
+                c = json.load(open(USER_PATH, "r", encoding="utf-8"))
+                self.id_token = c.get("idToken")
+                self.uid = c.get("localId")
+                self.exp_at = int(c.get("expires_at") or 0)
             except Exception:
+                pass
+
+    # ---------- nội bộ ----------
+    def _save_cache(self, id_token: str, uid: str, expires_in: int) -> None:
+        self.id_token = id_token
+        self.uid = uid
+        self.exp_at = int(time.time()) + int(expires_in or 3600)
+        save = {
+            "idToken": self.id_token,
+            "localId": self.uid,
+            "expires_at": self.exp_at,
+            "server_base_url": self.base,
+        }
+        os.makedirs(os.path.dirname(USER_PATH), exist_ok=True)
+        with open(USER_PATH, "w", encoding="utf-8") as f:
+            json.dump(save, f, ensure_ascii=False, indent=2)
+
+    def _token_valid(self) -> bool:
+        # còn >60s coi như hợp lệ
+        return bool(self.id_token) and (time.time() < (self.exp_at - 60))
+
+    # ---------- public ----------
+    def login(self, force: bool = False) -> bool:
+        """Login Firebase. Trả True nếu OK (hoặc đã có token hợp lệ)."""
+        if not self.server_enabled:
+            print("[api] server disabled")
+            return True
+
+        with self._lock:
+            if (not force) and self._token_valid():
+                print("[api] already have valid token")
+                return True
+
+            if not (self.api_key and self.email and self.password):
+                print("[api] missing api_key/email/password in options.json")
                 return False
-        return True
 
-    def _auth_headers(self) -> Dict:
-        h = {"Content-Type": "application/json"}
-        if self.id_token:
-            h["Authorization"] = f"Bearer {self.id_token}"
-        return h
-
-    def list_devices(self) -> List[str]:
-        if not self.server_enabled or not self.server_base:
-            return []
-        try:
-            url = f"{self.server_base}/devices/inverter/"
-            r = requests.get(url, headers=self._auth_headers(), timeout=15)
-            r.raise_for_status()
-            arr = r.json() if r.content else []
-            ids = []
-            for it in arr or []:
-                did = it.get("deviceId") or it.get("id")
-                if did:
-                    did = str(did)
-                    if not did.startswith("gti"):
-                        did = f"gti{did}"
-                    ids.append(did)
-            return ids
-        except Exception:
-            return []
-
-    def read_state_server(self, device_id: str) -> Dict:
-        if not self.server_enabled or not self.server_base:
-            return {}
-        try:
-            uid = self.user_id or "me"
-            did = device_id.replace("gti","")
-            url = f"{self.server_base}/api/inverter/data/{uid}/{did}/latest"
-            r = requests.get(url, headers=self._auth_headers(), timeout=15)
-            r.raise_for_status()
-            data = r.json() or {}
-            mapped = {
-                "energy_daily":               data.get("export_energy_kwh_daily") or data.get("energy_daily") or 0.0,
-                "energy_monthly":             data.get("export_energy_kwh_monthly") or data.get("energy_monthly") or 0.0,
-                "grid_energy_daily":          data.get("grid_in_energy_kwh_daily") or data.get("grid_energy_daily") or 0.0,
-                "grid_energy_monthly":        data.get("grid_in_energy_kwh_monthly") or data.get("grid_energy_monthly") or 0.0,
-                "tieuthu_energy_daily":       data.get("consumption_energy_kwh_daily") or data.get("tieuthu_energy_daily") or 0.0,
-                "tieuthu_energy_monthly":     data.get("consumption_energy_kwh_monthly") or data.get("tieuthu_energy_monthly") or 0.0
+            url = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword"
+            params = {"key": self.api_key}
+            payload = {
+                "email": self.email,
+                "password": self.password,
+                "returnSecureToken": True,
             }
-            return mapped
-        except Exception:
+            try:
+                print(f"[api] POST {url}?key={self.api_key[:6]}…{self.api_key[-4:]}")
+                r = self.s.post(url, params=params, json=payload, timeout=20)
+                print("[api] ->", r.status_code)
+                if not r.ok:
+                    # không log token hay thông tin nhạy cảm
+                    print("[api] firebase FAIL (masked)", (r.text or "")[:180])
+                    return False
+                j = r.json()
+                idt = j.get("idToken")
+                uid = j.get("localId")
+                exp = int(j.get("expiresIn") or 3600)
+                if not (idt and uid):
+                    print("[api] login response missing token/uid")
+                    return False
+                self._save_cache(idt, uid, exp)
+                print("[api] login ok uid=", uid, "valid_for=", exp, "s")
+                return True
+            except Exception as e:
+                print("[api] login exception:", e)
+                return False
+
+    def read_state_server(self, device_hint: str) -> Dict[str, Any]:
+        """
+        Lấy bản ghi mới nhất cho user từ server.
+        Ưu tiên: /api/inverter/data?uid=<uid>&deviceId=<device_hint>
+        Fallback: /api/inverter/data?uid=<uid>
+        Trả về dict rỗng nếu không có dữ liệu.
+        """
+        if not self.login():
             return {}
 
-    def get_schedules(self, device_id: str) -> Dict:
-        if not self.server_enabled or not self.server_base:
+        def _get(url: str) -> Optional[Dict[str, Any]]:
+            h = {
+                "Authorization": f"Bearer {self.id_token}",
+                "Accept": "application/json",
+            }
+            r = self.s.get(url, headers=h, timeout=15)
+            print("[api] GET", url)
+            print("[api] ->", r.status_code)
+            if not r.ok:
+                return None
+            try:
+                return r.json()
+            except Exception:
+                return None
+
+        base = self.base.rstrip("/")
+        # 1) theo device_hint (gti283 / 283)
+        url1 = f"{base}/api/inverter/data?uid={self.uid}&deviceId={device_hint}"
+        j = _get(url1)
+        rows: List[Dict[str, Any]] = j.get("data", []) if isinstance(j, dict) else []
+
+        # 2) fallback theo uid
+        if not rows:
+            url2 = f"{base}/api/inverter/data?uid={self.uid}"
+            j2 = _get(url2)
+            rows = j2.get("data", []) if isinstance(j2, dict) else []
+
+        if not rows:
             return {}
-        try:
-            uid = self.user_id or "me"
-            did = device_id.replace("gti","")
-            url = f"{self.server_base}/schedule/value?uid={uid}&deviceId={did}"
-            r = requests.get(url, headers=self._auth_headers(), timeout=15)
-            r.raise_for_status()
-            return r.json() or {}
-        except Exception:
-            return {}
 
-    def set_cutoff_voltage(self, device_id: str, volts: float) -> bool:
-        if not self.server_enabled or not self.server_base: return False
-        try:
-            did = device_id.replace("gti","")
-            url = f"{self.server_base}/settings/cutoff"
-            r = requests.post(url, headers=self._auth_headers(), json={"deviceId": did, "cutoff_voltage": volts}, timeout=15)
-            r.raise_for_status()
-            return True
-        except Exception:
-            return False
+        rows.sort(key=lambda x: x.get("updatedAt") or x.get("createdAt") or "", reverse=True)
+        row = rows[0]
+        val = (row.get("value") or "").strip()
 
-    def set_max_power(self, device_id: str, watts: float) -> bool:
-        if not self.server_enabled or not self.server_base: return False
-        try:
-            did = device_id.replace("gti","")
-            url = f"{self.server_base}/settings/max_power"
-            r = requests.post(url, headers=self._auth_headers(), json={"deviceId": did, "max_power": watts}, timeout=15)
-            r.raise_for_status()
-            return True
-        except Exception:
-            return False
-
-    def set_schedule(self, device_id: str, index: int, start: str, end: str, cutoff_v: float, max_w: float) -> bool:
-        if not self.server_enabled or not self.server_base: return False
-        try:
-            did = device_id.replace("gti","")
-            url = f"{self.server_base}/schedule"
-            payload = {"deviceId": did, "index": index, "start": start, "end": end,
-                       "cutoff_voltage": cutoff_v, "max_power": max_w}
-            r = requests.post(url, headers=self._auth_headers(), json=payload, timeout=15)
-            r.raise_for_status()
-            return True
-        except Exception:
-            return False
+        return {
+            "deviceId": row.get("deviceId"),
+            "userId": row.get("userId"),
+            "createdAt": row.get("createdAt"),
+            "updatedAt": row.get("updatedAt"),
+            "value": val,
+            "raw": row,
+        }
