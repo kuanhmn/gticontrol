@@ -1,16 +1,19 @@
+<!-- /app/templates/devices.html -->
 {% extends "base.html" %}
-{% block title %}Thiết bị{% endblock %}
 {% block body %}
-  <div class="card">
-    <h2>Thiết bị</h2>
-    <table>
-      <tr><th>ID</th><th></th></tr>
-      {% for d in devices %}
-        <tr>
-          <td>{{ d }}</td>
-          <td><a class="btn" href="/app/device/{{ d }}">Xem</a></td>
-        </tr>
-      {% endfor %}
-    </table>
+<div class="card">
+  <p class="title">Thiết bị</p>
+  <div class="row">
+    {% for it in items %}
+    <div class="col">
+      <div class="card" style="padding:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div><strong>{{ it.name }}</strong></div>
+          <a class="btn" href="/app/device/{{ it.id }}">Xem</a>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
   </div>
+</div>
 {% endblock %}
