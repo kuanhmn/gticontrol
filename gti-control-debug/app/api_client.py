@@ -1,132 +1,164 @@
-# -*- coding: utf-8 -*-
-import os, json, time, threading
-from typing import Dict, Any, List, Optional
+# app/api_client.py
+import os
+import json
+import time
+import threading
 import requests
+from typing import Dict, Any, Optional, List
 
 OPTIONS_PATH = "/data/options.json"
-USER_PATH    = "/data/user_options.json"
+USER_PATH = "/data/user_options.json"
 
-def _load_options() -> Dict[str, Any]:
+def load_options() -> Dict[str, Any]:
     with open(OPTIONS_PATH, "r", encoding="utf-8") as f:
-        opt = json.load(f)
-    # strip khoảng trắng nhỡ nhập thừa
-    for k in ("server_base_url", "firebase_api_key", "email", "password"):
-        v = opt.get(k)
+        j = json.load(f)
+    # strip khoảng trắng “vô hình”
+    for k in ("firebase_api_key", "email", "password", "server_base_url"):
+        v = j.get(k)
         if isinstance(v, str):
-            opt[k] = v.strip()
-    return opt
+            j[k] = v.strip()
+    return j
+
 
 class APIClient:
-    """
-    - Login Firebase bằng Identity Toolkit (signInWithPassword)
-    - Cache idToken vào /data/user_options.json (idToken, localId, expires_at)
-    - Đọc state từ server qua route:  /api/inverter/data?uid=<UID>&deviceId=<DID>
-      -> trả về phần tử đầu (data[0]) + parse value thành list số.
-    """
-    def __init__(self, opts: Dict[str, Any]) -> None:
-        self.base   = (opts.get("server_base_url") or "").rstrip("/")
-        self.email  = opts.get("email") or ""
-        self.pw     = opts.get("password") or ""
-        self.api_key= opts.get("firebase_api_key") or ""
-        self.s      = requests.Session()
-        self._lock  = threading.Lock()
-        self.id_tok : Optional[str] = None
-        self.uid    : Optional[str] = None
-        self.exp_at : int = 0
+    """Client lo phần login + gọi REST tới server giabao-inverter."""
+
+    def __init__(self, opts: Dict[str, Any]):
+        self.base = (opts.get("server_base_url") or "").rstrip("/")
+        self.email = opts.get("email") or ""
+        self.password = opts.get("password") or ""
+        self.api_key = opts.get("firebase_api_key") or ""
+        self.server_enabled = bool(opts.get("server_enabled", True))
+        self.s = requests.Session()
+
+        self._lock = threading.Lock()
+        self.id_token: Optional[str] = None
+        self.uid: Optional[str] = None
+        self.exp_at: int = 0  # epoch seconds
 
         # nạp cache nếu có
         if os.path.exists(USER_PATH):
             try:
                 c = json.load(open(USER_PATH, "r", encoding="utf-8"))
-                self.id_tok = c.get("idToken")
-                self.uid    = c.get("localId")
+                self.id_token = c.get("idToken")
+                self.uid = c.get("localId")
                 self.exp_at = int(c.get("expires_at") or 0)
             except Exception:
                 pass
 
-    # ---------- auth ----------
-    def _save_cache(self, j: Dict[str, Any]) -> None:
-        self.id_tok = j.get("idToken")
-        self.uid    = j.get("localId")
-        exp_sec     = int(j.get("expiresIn") or 3600)
-        self.exp_at = int(time.time()) + exp_sec
+    # ---------- nội bộ ----------
+    def _save_cache(self, id_token: str, uid: str, expires_in: int) -> None:
+        self.id_token = id_token
+        self.uid = uid
+        self.exp_at = int(time.time()) + int(expires_in or 3600)
+        save = {
+            "idToken": self.id_token,
+            "localId": self.uid,
+            "expires_at": self.exp_at,
+            "server_base_url": self.base,
+        }
         os.makedirs(os.path.dirname(USER_PATH), exist_ok=True)
-        json.dump(
-            {"idToken": self.id_tok, "localId": self.uid, "expires_at": self.exp_at},
-            open(USER_PATH, "w", encoding="utf-8"),
-            ensure_ascii=False, indent=2
-        )
+        with open(USER_PATH, "w", encoding="utf-8") as f:
+            json.dump(save, f, ensure_ascii=False, indent=2)
 
     def _token_valid(self) -> bool:
-        return bool(self.id_tok) and (time.time() < self.exp_at - 60)
+        # còn >60s coi như hợp lệ
+        return bool(self.id_token) and (time.time() < (self.exp_at - 60))
 
+    # ---------- public ----------
     def login(self, force: bool = False) -> bool:
-        if not self.base:
-            print("[api] server disabled");  return True
-        if self._token_valid() and not force:
-            print("[api] already have valid token");  return True
-        if not (self.api_key and self.email and self.pw):
-            print("[api] missing api_key/email/password");  return False
+        """Login Firebase. Trả True nếu OK (hoặc đã có token hợp lệ)."""
+        if not self.server_enabled:
+            print("[api] server disabled")
+            return True
 
         with self._lock:
-            if self._token_valid() and not force:
+            if (not force) and self._token_valid():
+                print("[api] already have valid token")
                 return True
-            url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword"
-            try:
-                print(f"[api] POST {url}?key=***{self.api_key[-5:]}")
-                r = self.s.post(url, params={"key": self.api_key},
-                                json={"email": self.email, "password": self.pw, "returnSecureToken": True},
-                                timeout=20)
-                print("[api] ->", r.status_code)
-                if not r.ok:
-                    print("[api] login FAIL:", (r.text or "")[:400])
-                    return False
-                j = r.json()
-                self._save_cache(j)
-                print(f"[api] login ok uid={self.uid} valid_for={int(self.exp_at-time.time())}s")
-                return True
-            except Exception as e:
-                print("[api] login error:", e)
+
+            if not (self.api_key and self.email and self.password):
+                print("[api] missing api_key/email/password in options.json")
                 return False
 
-    # ---------- data ----------
-    def _auth_headers(self) -> Dict[str, str]:
-        return {"Authorization": f"Bearer {self.id_tok}", "Accept": "application/json"}
+            url = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword"
+            params = {"key": self.api_key}
+            payload = {
+                "email": self.email,
+                "password": self.password,
+                "returnSecureToken": True,
+            }
+            try:
+                print(f"[api] POST {url}?key={self.api_key[:6]}…{self.api_key[-4:]}")
+                r = self.s.post(url, params=params, json=payload, timeout=20)
+                print("[api] ->", r.status_code)
+                if not r.ok:
+                    # không log token hay thông tin nhạy cảm
+                    print("[api] firebase FAIL (masked)", (r.text or "")[:180])
+                    return False
+                j = r.json()
+                idt = j.get("idToken")
+                uid = j.get("localId")
+                exp = int(j.get("expiresIn") or 3600)
+                if not (idt and uid):
+                    print("[api] login response missing token/uid")
+                    return False
+                self._save_cache(idt, uid, exp)
+                print("[api] login ok uid=", uid, "valid_for=", exp, "s")
+                return True
+            except Exception as e:
+                print("[api] login exception:", e)
+                return False
 
-    def _get_json(self, url: str) -> Optional[Dict[str, Any]]:
-        r = self.s.get(url, headers=self._auth_headers(), timeout=20)
-        print("[api] GET", url); print("[api] ->", r.status_code)
-        if not r.ok:
-            print("[api] body:", (r.text or "")[:400])
-            return None
-        try:
-            return r.json()
-        except Exception:
-            print("[api] invalid json from", url)
-            return None
-
-    def read_state_server(self, device_id: str) -> Dict[str, Any]:
+    def read_state_server(self, device_hint: str) -> Dict[str, Any]:
         """
-        Trả: {"deviceId", "userId", "createdAt", "updatedAt", "value", "raw"}
-        value là chuỗi "#", cần split khi render.
+        Lấy bản ghi mới nhất cho user từ server.
+        Ưu tiên: /api/inverter/data?uid=<uid>&deviceId=<device_hint>
+        Fallback: /api/inverter/data?uid=<uid>
+        Trả về dict rỗng nếu không có dữ liệu.
         """
-        if not self.login(False):
+        if not self.login():
             return {}
-        url = f"{self.base}/api/inverter/data?uid={self.uid}&deviceId={device_id}"
-        j = self._get_json(url)
-        if not j or not j.get("data"):
-            return {}
-        row = j["data"][0].copy()
-        row["raw"] = row.copy()
-        return row
 
-    # Optional: liệt kê nhanh (từ coordinator sẽ chuẩn hơn)
-    def list_devices(self) -> List[str]:
-        # không có API list chuẩn => trả về theo include_devices trong options
-        try:
-            inc = _load_options().get("include_devices") or []
-            if inc and inc != ["all"]:
-                return [str(x) for x in inc]
-        except Exception:
-            pass
-        return ["gti283"]
+        def _get(url: str) -> Optional[Dict[str, Any]]:
+            h = {
+                "Authorization": f"Bearer {self.id_token}",
+                "Accept": "application/json",
+            }
+            r = self.s.get(url, headers=h, timeout=15)
+            print("[api] GET", url)
+            print("[api] ->", r.status_code)
+            if not r.ok:
+                return None
+            try:
+                return r.json()
+            except Exception:
+                return None
+
+        base = self.base.rstrip("/")
+        # 1) theo device_hint (gti283 / 283)
+        url1 = f"{base}/api/inverter/data?uid={self.uid}&deviceId={device_hint}"
+        j = _get(url1)
+        rows: List[Dict[str, Any]] = j.get("data", []) if isinstance(j, dict) else []
+
+        # 2) fallback theo uid
+        if not rows:
+            url2 = f"{base}/api/inverter/data?uid={self.uid}"
+            j2 = _get(url2)
+            rows = j2.get("data", []) if isinstance(j2, dict) else []
+
+        if not rows:
+            return {}
+
+        rows.sort(key=lambda x: x.get("updatedAt") or x.get("createdAt") or "", reverse=True)
+        row = rows[0]
+        val = (row.get("value") or "").strip()
+
+        return {
+            "deviceId": row.get("deviceId"),
+            "userId": row.get("userId"),
+            "createdAt": row.get("createdAt"),
+            "updatedAt": row.get("updatedAt"),
+            "value": val,
+            "raw": row,
+        }
