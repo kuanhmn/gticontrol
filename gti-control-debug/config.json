@@ -31,7 +31,7 @@
     "expose_totals_only": false,
     "server_base_url": "https://giabao-inverter.com",
     "firebase_api_key": "",
-    "device_suffixes": "" },
+    "device_suffixes": "",
     "firebase_project_id": "",
     "mqtt_device_source": "mqtt",
     "device_mqtt_host": "giabao-inverter.com",
