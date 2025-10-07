@@ -39,7 +39,6 @@
     "device_mqtt_username": "",
     "device_mqtt_password": "",
     "scan_interval": 30,
-    ],
     "publish_mqtt": true,
     "mqtt_host": "",
     "mqtt_port": 1883,
