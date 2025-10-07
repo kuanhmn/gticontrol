@@ -107,3 +107,18 @@ def devices_page():
 @app.get("/api/state")
 def api_state():
     return JSONResponse(latest_state or {})
+from fastapi.responses import HTMLResponse
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+
+# Khởi tạo Jinja2 env (chỉ cần 1 lần)
+env = Environment(
+    loader=FileSystemLoader("templates"),
+    autoescape=select_autoescape(["html","xml"])
+)
+
+def render(tpl, **ctx):
+    return HTMLResponse(env.get_template(tpl).render(**ctx))
+
+@app.get("/app/device/{device_id}", response_class=HTMLResponse)
+def device_detail(device_id: str, tab: str = "stats"):
+    return render("device_detail.html", device_id=device_id, tab=tab)
