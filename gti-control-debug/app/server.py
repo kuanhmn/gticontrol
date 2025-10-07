@@ -1,124 +1,210 @@
-# app/server.py
-import os
-import time
-import asyncio
-from typing import Dict, Any, List
+# /app/server.py
+from __future__ import annotations
+import json, os, threading, time
+from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
-from starlette.templating import Jinja2Templates
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from api_client import APIClient, load_options
+# Re-use API client & options from your current add-on
+from api_client import APIClient, load_options  # <-- giữ nguyên file api_client.py hiện tại
 
-app = FastAPI()
+APP_TITLE = "GTI Control"
+USER_PATH = "/data/user_options.json"
 
-# mount /static nếu thư mục tồn tại (tránh lỗi 502 nếu không có)
-if os.path.isdir("/app/static"):
-    app.mount("/static", StaticFiles(directory="/app/static"), name="static")
+app = FastAPI(title=APP_TITLE)
 
-templates = Jinja2Templates(directory="/app/templates")
+# ---------- Jinja templates ----------
+env = Environment(
+    loader=FileSystemLoader("/app/templates"),
+    autoescape=select_autoescape(["html", "xml"])
+)
+def render(tpl: str, **ctx) -> HTMLResponse:
+    return HTMLResponse(env.get_template(tpl).render(**ctx))
 
-api_client: APIClient | None = None
-latest_state: Dict[str, Any] = {}
+# ---------- API client & login ----------
+_opts: Dict[str, Any] = load_options()
+_api = APIClient(_opts)
+_api_lock = threading.Lock()
 
-def parse_value_str(v: str) -> List[float]:
-    out: List[float] = []
-    for p in (v or "").split("#"):
-        p = p.strip()
-        if not p:
-            continue
+def ensure_login() -> bool:
+    try:
+        with _api_lock:
+            return _api.login()
+    except Exception:
+        return False
+
+# ---------- cache helpers ----------
+def _load_user_cache() -> Dict[str, Any]:
+    if os.path.exists(USER_PATH):
         try:
-            out.append(float(p))
+            with open(USER_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
         except Exception:
             pass
+    return {}
+
+def _save_user_cache(cache: Dict[str, Any]) -> None:
+    os.makedirs(os.path.dirname(USER_PATH), exist_ok=True)
+    with open(USER_PATH, "w", encoding="utf-8") as f:
+        json.dump(cache, f, ensure_ascii=False, indent=2)
+
+# ---------- value parsing ----------
+def parse_value_string(val: str) -> List[float]:
+    parts = [p for p in (val or "").split("#") if p != ""]
+    out: List[float] = []
+    for p in parts:
+        try:
+            out.append(float(str(p).replace(",", ".")))
+        except Exception:
+            out.append(float("nan"))
     return out
 
-async def poll_loop():
-    global latest_state
-    opt = load_options()
-    scan = int(opt.get("scan_interval", 30)) or 30
-    include = opt.get("include_devices") or ["gti283"]
-    device_hint = include[0] if include else "gti283"
+# nhãn mặc định (đủ dài để không lỗi; UI sẽ ẩn phần không có dữ liệu)
+DEFAULT_LABELS = [
+    "Điện áp lưới (V)",          # 0
+    "Tần số lưới (Hz)",           # 1
+    "Công suất xả (W)",           # 2
+    "Điện áp pin (V)",            # 3
+    "Dòng điện pin (A)",          # 4 (suy ra nếu backend có)
+    "Điện áp ngắt (V)",           # 5
+    "Công suất giới hạn (W)",     # 6
+    "Công suất hoà lưới (W)",     # 7
+    "Nhiệt độ Mosfet (°C)",       # 8
+    "Dự phòng 9",                  # 9
+    "Dự phòng 10",                 # 10
+    "Dự phòng 11",                 # 11
+]
 
-    while True:
-        try:
-            st = api_client.read_state_server(device_hint) if api_client else {}
-            if st:
-                vals = parse_value_str(st.get("value", ""))
-                latest_state = {
-                    "raw": st,
-                    "values": vals,
-                    "ts": time.time(),
-                }
-                print("[coord] server state", device_hint, st.get("deviceId"), st.get("updatedAt"))
-        except Exception as e:
-            print("[coord] read error:", e)
-        await asyncio.sleep(scan)
+# ---------- device resolve ----------
+def resolve_device_id(slug_or_id: str = "gti283") -> Optional[str]:
+    """
+    Cho phép user gọi /app/device/gti283 nhưng thực tế thiết bị backend là "GTIControl###".
+    Ưu tiên dùng cache, nếu không có sẽ dò từ API /all rồi chọn thiết bị có dữ liệu gần nhất.
+    """
+    cache = _load_user_cache()
+    devmap = cache.get("device_map", {}) if isinstance(cache.get("device_map"), dict) else {}
 
-@app.on_event("startup")
-async def _startup():
-    global api_client
-    opt = load_options()
-    api_client = APIClient(opt)
-    ok = api_client.login(force=True)
-    print("[api] login at startup:", ok, "uid:", api_client.uid)
-    asyncio.create_task(poll_loop())
+    # cache hit
+    if slug_or_id in devmap:
+        return devmap[slug_or_id]
 
-# ---------------- UI routes (đơn giản để bạn test nhanh) ----------------
+    # login + lấy danh sách
+    if not ensure_login():
+        return None
 
-@app.get("/", response_class=HTMLResponse)
-def _root():
+    raw_all = _api.read_state_server("all") or {}
+    dids: List[str] = []
+    if isinstance(raw_all, dict) and "data" in raw_all:
+        for row in raw_all["data"]:
+            did = row.get("deviceId") or row.get("device_id")
+            if isinstance(did, str) and did.startswith("GTIControl") and did not in dids:
+                dids.append(did)
+
+    # thử cái nào có dữ liệu trước thì lấy luôn
+    best: Optional[str] = None
+    best_ts: float = 0.0
+    for did in dids:
+        st = _api.read_state_server(did) or {}
+        # có value hợp lệ
+        if isinstance(st, dict) and (st.get("value") or st.get("raw") or st.get("values")):
+            # updatedAt trong raw
+            ts = 0.0
+            try:
+                raw = st.get("raw") or {}
+                ua = raw.get("updatedAt") or raw.get("updated_at")
+                # không cần parse ISO phức tạp; chỉ cần ưu tiên cái nào có dữ liệu
+                ts = time.time() if (st.get("value") or st.get("values")) else 0.0
+            except Exception:
+                ts = 0.0
+            if ts >= best_ts:
+                best = did
+                best_ts = ts
+
+    # fallback: nếu không cái nào có state, lấy cái đầu
+    if not best and dids:
+        best = dids[0]
+
+    if best:
+        devmap[slug_or_id] = best
+        cache["device_map"] = devmap
+        _save_user_cache(cache)
+    return best
+
+# ---------- REST: state JSON ----------
+@app.get("/api/state")
+def api_state(device_id: str = "gti283"):
+    did = resolve_device_id(device_id) or device_id
+    if not ensure_login():
+        return JSONResponse({"detail": "login failed"}, status_code=500)
+
+    st = _api.read_state_server(did) or {}
+    raw = st.get("raw") or st
+
+    # value -> numbers
+    values: List[float] = []
+    if "value" in st and isinstance(st["value"], str):
+        values = parse_value_string(st["value"])
+    elif "values" in st and isinstance(st["values"], list):
+        values = st["values"]
+
+    return {
+        "raw": raw,
+        "values": values,
+        "labels": DEFAULT_LABELS[:len(values)],
+        "ts": int(time.time()),
+    }
+
+# ---------- UI: routes ----------
+@app.get("/", include_in_schema=False)
+def root():
+    return RedirectResponse(url="/app/devices")
+
+@app.get("/app", include_in_schema=False)
+def app_root():
     return RedirectResponse(url="/app/devices")
 
 @app.get("/app/devices", response_class=HTMLResponse)
 def devices_page():
-    raw = latest_state.get("raw") or {}
-    vals = latest_state.get("values") or []
-    ctx = {
-        "request": {},   # Jinja2Templates yêu cầu
-        "devices": ["gti283"],
-        "device_id": raw.get("deviceId"),
-        "updated": raw.get("updatedAt"),
-        # vài cột minh hoạ; bạn map lại theo ý muốn
-        "pv_power": vals[0] if len(vals) > 0 else None,
-        "grid_voltage": vals[8] if len(vals) > 8 else None,
-        "mosfet_temp": vals[10] if len(vals) > 10 else None,
-    }
-    # Nếu bạn đã có template devices.html riêng, nó sẽ render đẹp hơn.
-    # Tạm thời, trả HTML đơn giản nếu thiếu template.
-    tpl_path = "/app/templates/devices.html"
-    if os.path.isfile(tpl_path):
-        return templates.TemplateResponse("devices.html", ctx)
-    # fallback HTML giản lược
-    body = f"""
-    <html><body style="font-family: sans-serif;">
-      <h2>GTI Control</h2>
-      <div>Device: {ctx["device_id"] or "-"}</div>
-      <div>Updated: {ctx["updated"] or "-"}</div>
-      <div>PV Power: {ctx["pv_power"]}</div>
-      <div>Grid V: {ctx["grid_voltage"]}</div>
-      <div>Mosfet °C: {ctx["mosfet_temp"]}</div>
-    </body></html>
-    """
-    return HTMLResponse(body)
+    # build danh sách từ "all"
+    items: List[Dict[str, str]] = []
+    ensure_login()
+    raw = _api.read_state_server("all") or {}
+    seen = set()
+    if isinstance(raw, dict) and "data" in raw:
+        for r in raw["data"]:
+            did = r.get("deviceId") or r.get("device_id")
+            if isinstance(did, str) and did.startswith("GTIControl") and did not in seen:
+                seen.add(did)
+                items.append({"id": did, "name": did})
+    # nếu không có gì, vẫn hiển thị link mặc định gti283 (sẽ resolve)
+    if not items:
+        items.append({"id": "gti283", "name": "gti283"})
 
-# Debug JSON
-@app.get("/api/state")
-def api_state():
-    return JSONResponse(latest_state or {})
-from fastapi.responses import HTMLResponse
-from jinja2 import Environment, FileSystemLoader, select_autoescape
-
-# Khởi tạo Jinja2 env (chỉ cần 1 lần)
-env = Environment(
-    loader=FileSystemLoader("templates"),
-    autoescape=select_autoescape(["html","xml"])
-)
-
-def render(tpl, **ctx):
-    return HTMLResponse(env.get_template(tpl).render(**ctx))
+    return render("devices.html", items=items, app_title=APP_TITLE)
 
 @app.get("/app/device/{device_id}", response_class=HTMLResponse)
 def device_detail(device_id: str, tab: str = "stats"):
-    return render("device_detail.html", device_id=device_id, tab=tab)
+    did = resolve_device_id(device_id) or device_id
+    data = api_state(did)
+    # data có thể là JSONResponse khi lỗi
+    if isinstance(data, JSONResponse):
+        return render("device_detail.html", device_id=device_id, did=did, have=False, app_title=APP_TITLE)
+
+    values = data.get("values") or []
+    labels = data.get("labels") or []
+    kv = []
+    for i, v in enumerate(values):
+        name = labels[i] if i < len(labels) else f"Chỉ số {i}"
+        kv.append({"k": name, "v": v})
+
+    return render(
+        "device_detail.html",
+        device_id=device_id,
+        did=did,
+        have=(len(values) > 0),
+        kv=kv,
+        raw=data.get("raw") or {},
+        app_title=APP_TITLE
+    )
