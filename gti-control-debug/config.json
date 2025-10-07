@@ -39,8 +39,6 @@
     "device_mqtt_username": "",
     "device_mqtt_password": "",
     "scan_interval": 30,
-    "include_devices": [
-      "all"
     ],
     "publish_mqtt": true,
     "mqtt_host": "",
@@ -68,9 +66,6 @@
     "device_mqtt_username": "str?",
     "device_mqtt_password": "str?",
     "scan_interval": "int(5,3600)",
-    "include_devices": [
-      "str"
-    ],
     "publish_mqtt": "bool",
     "mqtt_host": "str?",
     "mqtt_port": "int?",
