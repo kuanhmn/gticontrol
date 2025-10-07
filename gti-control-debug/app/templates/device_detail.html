@@ -1,27 +1,27 @@
+<!-- /app/templates/device_detail.html -->
 {% extends "base.html" %}
-{% block title %}Thiết bị {{ device_id }}{% endblock %}
 {% block body %}
-  <div class="card">
-    <h2>Thiết bị {{ device_id }}</h2>
-    {% if state %}
-      {% set vals = (state.value or "").split("#") %}
-      <p class="muted">Cập nhật: {{ state.updatedAt }}</p>
-      <table>
-        <tr><th>STT</th><th>Thông số</th><th>Giá trị</th></tr>
-        <tr><td>0</td><td>Điện áp lưới (V)</td><td>{{ vals[0] }}</td></tr>
-        <tr><td>1</td><td>Tần số (Hz)</td><td>{{ vals[1] }}</td></tr>
-        <tr><td>2</td><td>Dòng DC (A)</td><td>{{ vals[2] }}</td></tr>
-        <tr><td>3</td><td>Công suất xả (W)</td><td>{{ vals[3] }}</td></tr>
-        <tr><td>4</td><td>Điện áp ngắt (V)</td><td>{{ vals[4] }}</td></tr>
-        <tr><td>5</td><td>Nhiệt độ Mosfet (°C)</td><td>{{ vals[5] }}</td></tr>
-        <tr><td>6</td><td>Công suất giới hạn (W)</td><td>{{ vals[6] }}</td></tr>
-        <tr><td>7</td><td>Công suất hoà lưới (W)</td><td>{{ vals[7] }}</td></tr>
-        <tr><td>8</td><td>Công suất lấy lưới (W)</td><td>{{ vals[8] }}</td></tr>
-        <tr><td>9</td><td>Công suất tiêu thụ (W)</td><td>{{ vals[9] }}</td></tr>
-      </table>
-      <p class="muted">Raw: {{ state.value }}</p>
-    {% else %}
-      <p>Không có dữ liệu.</p>
-    {% endif %}
-  </div>
+<div class="card">
+  <p class="title">Thiết bị <span class="muted">{{ device_id }}</span>
+    <span class="muted right">DID thực: {{ did }}</span>
+  </p>
+
+  {% if not have %}
+    <div class="muted">Không có dữ liệu.</div>
+  {% else %}
+    <table>
+      <thead><tr><th>Thông số</th><th>Giá trị</th></tr></thead>
+      <tbody>
+      {% for x in kv %}
+        <tr><td>{{ x.k }}</td><td>{{ "%.2f"|format(x.v) if x.v==x.v else "-" }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    <details style="margin-top:14px">
+      <summary class="muted">Raw</summary>
+      <pre>{{ raw | tojson(indent=2) }}</pre>
+    </details>
+  {% endif %}
+</div>
 {% endblock %}
